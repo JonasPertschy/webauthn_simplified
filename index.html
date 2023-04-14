@@ -1,0 +1,140 @@
+<html>
+<head>
+<title>Flask Webauthn</title>
+<script src="simplewebauthn.js"></script>
+<link href="style.css" rel="stylesheet" />
+</head>
+<body>
+<div class="login-form">
+  <div id="success" class="content" hidden></div>
+  <div id="error" class="content" hidden></div>
+<div class="action">
+  <button id="btnBegin" hidden>Register</button>
+  <button id="btnBeginAuth">Login</button>
+</div>
+
+</div>
+<script>
+  const { startRegistration } = SimpleWebAuthnBrowser;
+
+  // <button>
+  const elemBegin = document.getElementById('btnBegin');
+  // <span>/<p>/etc...
+  const elemSuccess = document.getElementById('success');
+  // <span>/<p>/etc...
+  const elemError = document.getElementById('error');
+
+  // Start registration when the user clicks a button
+  elemBegin.addEventListener('click', async () => {
+    // Reset success/error messages
+    elemSuccess.innerHTML = '';
+    elemError.innerHTML = '';
+
+    // GET registration options from the endpoint that calls
+    // @simplewebauthn/server -> generateRegistrationOptions()
+    const resp = await fetch('/generate-registration-options');
+
+    let attResp;
+    try {
+      // Pass the options to the authenticator and wait for a response
+      attResp = await startRegistration(await resp.json());
+    } catch (error) {
+      // Some basic error handling
+      if (error.name === 'InvalidStateError') {
+        elemError.innerText = 'Error: Authenticator was probably already registered by user';
+      } else {
+        elemError.innerText = error;
+      }
+
+      throw error;
+    }
+
+    // POST the response to the endpoint that calls
+    // @simplewebauthn/server -> verifyRegistrationResponse()
+    const verificationResp = await fetch('/verify-registration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(attResp),
+    });
+
+    // Wait for the results of verification
+    const verificationJSON = await verificationResp.json();
+
+    // Show UI appropriate for the `verified` status
+    if (verificationJSON && verificationJSON.verified) {
+      elemSuccess.innerHTML = 'Registered!';
+      elemSuccess.hidden = false;
+    } else {
+      elemError.innerHTML = `Oh no, something went wrong! Response: <pre>${JSON.stringify(
+        verificationJSON,
+      )}</pre>`;
+      elemError.hidden = false;
+    }
+  });
+  const { startAuthentication } = SimpleWebAuthnBrowser;
+
+  // <button>
+  const elemBeginAuthentication = document.getElementById('btnBeginAuth');
+  // <span>/<p>/etc...
+  const elemSuccessAuth = document.getElementById('successAuth');
+  // <span>/<p>/etc...
+  const elemErrorAuth = document.getElementById('errorAuth');
+
+  // Start authentication when the user clicks a button
+  elemBeginAuthentication.addEventListener('click', async () => {
+    // Reset success/error messages
+    elemSuccess.innerHTML = '';
+    elemError.innerHTML = '';
+
+    // GET authentication options from the endpoint that calls
+    // @simplewebauthn/server -> generateAuthenticationOptions()
+    const resp = await fetch('/generate-authentication-options');
+
+    let asseResp;
+    try {
+      // Pass the options to the authenticator and wait for a response
+      asseResp = await startAuthentication(await resp.json());
+    } catch (error) {
+      // Some basic error handling
+      elemError.innerText = error;
+      throw error;
+    }
+
+    // POST the response to the endpoint that calls
+    // @simplewebauthn/server -> verifyAuthenticationResponse()
+    const verificationResp = await fetch('/verify-authentication', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(asseResp),
+    });
+
+    // Wait for the results of verification
+    const verificationJSON = await verificationResp.json();
+
+    // Show UI appropriate for the `verified` status
+    if (verificationJSON && verificationJSON.verified) {
+      elemSuccess.innerHTML = 'Logged in!';
+      elemSuccess.hidden = false;
+    } else {
+      elemError.innerHTML = `Oh no, something went wrong! Response: <pre>${JSON.stringify(
+        verificationJSON,
+      )}</pre>`;
+      elemError.hidden = false;
+    }
+  });
+  fetch('/get-config').then(resp => resp.json()).then(config => {
+    if (config.registrationPossible) {
+      document.querySelector("#btnBegin").hidden = false
+    }
+    //document.querySelector("#btnBeginAuth").click()
+  })
+
+  //document.querySelector("#btnBeginAuth").click()
+</script>
+</body>
+</html>
+
